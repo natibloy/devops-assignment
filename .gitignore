@@ -8,3 +8,6 @@ artifacts/*
 # Python bytecode from running the gateway locally
 __pycache__/
 *.py[cod]
+
+# Claude Code local settings (machine-specific, not part of the submission)
+.claude/settings.local.json
