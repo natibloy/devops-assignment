@@ -4,3 +4,7 @@
 # Build outputs produced by the builder node; the directory itself is tracked.
 artifacts/*
 !artifacts/.gitkeep
+
+# Python bytecode from running the gateway locally
+__pycache__/
+*.py[cod]
