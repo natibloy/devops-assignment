@@ -160,7 +160,7 @@ The builder is masterless (`file_client: local`) against the *same* state tree t
 master later serves, which is what lets the Podman setup be one state file shared
 by the builder and the controller instead of two copies.
 
-Slurm is built with its own `debian/` packaging (`mk-build-deps` + `debuild`), which
+Slurm is built with its own `debian/` packaging (`mk-build-deps` + `dpkg-buildpackage`), which
 is what produces the separated `slurm-smd`, `slurm-smd-client`, `slurm-smd-slurmctld`,
 `slurm-smd-slurmd` and `slurm-smd-slurmdbd` packages. Only those five of Slurm's
 seventeen binary packages are ever installed, so the build skips the work nothing
