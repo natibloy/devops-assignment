@@ -81,6 +81,21 @@ end state, not a failure.
 
 ## Verifying the deployment
 
+The quickest check is the bundled suite, which covers all five phases — including
+submitting a real Slurm job and confirming its metrics arrive:
+
+```bash
+./scripts/verify.sh
+```
+
+It prints a PASS/FAIL line per check and exits non-zero if any fail, so it also
+works as a CI gate. A healthy deployment reports **48 passed, 0 failed**; the run
+takes a couple of minutes, most of it waiting for the Slurm job to finish
+reporting. It needs only the controller and compute nodes running (the builder is
+expected to be powered off).
+
+The individual commands, if you would rather check by hand:
+
 ```bash
 # Artifacts produced by the builder (run on the host)
 ls artifacts/debs/*.deb artifacts/images/*.tar
@@ -307,6 +322,7 @@ salt/etc/                       master and minion configs
 salt/states/                    the state tree (also served masterless to the builder)
 salt/states/artifacts.jinja     shared-folder layout, imported by producer and consumers
 salt/states/k3s/macros.jinja    the namespace and Helm-release idioms both charts use
+scripts/verify.sh               48-check end-to-end verification of all five phases
 salt/pillar/                    every version, address, credential and tunable
 gateway/                        the Phase 4 microservice and its Containerfile
 charts/metrics-gateway/         Helm chart, ServiceMonitor, Phase 5 dashboard
