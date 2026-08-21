@@ -1,0 +1,19 @@
+#!/bin/bash
+{%- set phase5 = pillar['phase5'] %}
+{%- set partition = pillar['slurm']['partition']['name'] %}
+# Invoked from cron on the controller. Submission happens here; slurmctld
+# dispatches the job to the compute node, which is where the reporter actually
+# runs and where SLURMD_NODENAME comes from.
+set -u
+
+exec >>"{{ phase5.log_file }}" 2>&1
+echo "--- $(date --iso-8601=seconds) ---"
+
+# The first cron ticks can land while the compute node is still provisioning, so
+# an unavailable partition is reported and left for the next run.
+if ! sinfo -h -o '%T' -p {{ partition }} | grep -qE 'idle|mixed|alloc'; then
+  echo "partition {{ partition }} has no available node yet, skipping"
+  exit 0
+fi
+
+sbatch "{{ phase5.job_script }}"

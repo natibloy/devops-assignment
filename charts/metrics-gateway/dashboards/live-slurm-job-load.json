@@ -1,0 +1,174 @@
+{
+  "title": "Live Slurm Job Load",
+  "uid": "live-slurm-job-load",
+  "tags": ["slurm", "hpc"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "job_id",
+        "label": "SLURM_JOB_ID",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(slurm_job_cpu_usage_percent, SLURM_JOB_ID)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 3,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "nodename",
+        "label": "SLURMD_NODENAME",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(slurm_job_cpu_usage_percent, SLURMD_NODENAME)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Reported by the Slurm job through the metrics gateway",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "CPU usage",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "auto" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_cpu_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "legendFormat": "job {{SLURM_JOB_ID}} @ {{SLURMD_NODENAME}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "GPU usage",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "auto" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_gpu_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "legendFormat": "job {{SLURM_JOB_ID}} @ {{SLURMD_NODENAME}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Memory usage",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "auto" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_memory_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "legendFormat": "job {{SLURM_JOB_ID}} @ {{SLURMD_NODENAME}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Latest sample per job",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "options": { "showHeader": true },
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "merge", "options": {} }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_cpu_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_gpu_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "slurm_job_memory_usage_percent{SLURM_JOB_ID=~\"$job_id\", SLURMD_NODENAME=~\"$nodename\"}",
+          "instant": true,
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

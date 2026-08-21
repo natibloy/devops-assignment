@@ -1,0 +1,30 @@
+replicaCount: 1
+
+image:
+  repository: localhost/metrics-gateway
+  tag: "0.1.0"
+  # The image is side-loaded into containerd from the builder's export, so pulling
+  # must never be attempted.
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  # Matches the kube-prometheus-stack release so Prometheus selects this monitor.
+  labels:
+    release: kps
+
+dashboard:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

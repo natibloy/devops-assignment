@@ -1,0 +1,15 @@
+{%- set slurm = pillar['slurm'] %}
+AuthType=auth/munge
+DbdHost=controller
+DbdPort={{ slurm.slurmdbd_port }}
+SlurmUser=slurm
+
+DebugLevel=info
+LogFile=/var/log/slurm/slurmdbd.log
+PidFile=/run/slurmdbd.pid
+
+StorageType=accounting_storage/mysql
+StorageHost={{ slurm.db.host }}
+StorageUser={{ slurm.db.user }}
+StoragePass={{ pillar['secrets']['slurmdbd_db_password'] }}
+StorageLoc={{ slurm.db.name }}

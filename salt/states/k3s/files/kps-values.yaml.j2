@@ -1,0 +1,106 @@
+{%- set monitoring = pillar['monitoring'] %}
+{%- set secrets = pillar['secrets'] %}
+{%- set nodes = pillar['network']['nodes'] %}
+{%- set exporter_port = monitoring.node_exporter.port %}
+{%- set grafana = monitoring.grafana %}
+# Rendered by Salt from salt/states/k3s/files/kps-values.yaml.j2 - do not edit.
+
+# No alertmanager: nothing in this assignment routes alerts, and leaving it out
+# keeps the stack inside the compute node's memory budget.
+alertmanager:
+  enabled: false
+
+grafana:
+  adminUser: {{ secrets.grafana_admin_user }}
+  adminPassword: {{ secrets.grafana_admin_password }}
+
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - {{ grafana.host }}
+    tls:
+      - secretName: {{ grafana.tls_secret }}
+        hosts:
+          - {{ grafana.host }}
+
+  # The sidecar picks up any ConfigMap labelled grafana_dashboard, which is how
+  # the metrics-gateway chart ships the Phase 5 dashboard.
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      node-exporter-full:
+        gnetId: {{ grafana.node_exporter_dashboard.gnet_id }}
+        revision: {{ grafana.node_exporter_dashboard.revision }}
+        datasource: Prometheus
+
+prometheus:
+  prometheusSpec:
+    retention: {{ monitoring.kube_prometheus_stack.retention }}
+    scrapeInterval: 15s
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 100m
+      limits:
+        memory: 1500Mi
+
+    # Pick up ServiceMonitors that do not carry this release's helm labels, which
+    # is what lets the separately-installed metrics-gateway chart be scraped.
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    # Both host node exporters are scraped from here rather than through the
+    # chart's own ServiceMonitor, so the controller (Podman) and the compute node
+    # (DaemonSet) are covered by one explicit job.
+    additionalScrapeConfigs:
+      - job_name: node-exporter-hosts
+        static_configs:
+{%- for name in ['controller', 'compute'] %}
+          - targets:
+              - '{{ nodes[name].ip }}:{{ exporter_port }}'
+            labels:
+              node: {{ name }}
+              instance: {{ name }}
+{%- endfor %}
+
+# Runs node_exporter on the compute node. The Podman-managed exporter required by
+# the assignment stays exclusive to the controller.
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  prometheus:
+    monitor:
+      # Disabled so additionalScrapeConfigs above is the only thing scraping node
+      # exporters; otherwise every compute sample would arrive twice.
+      enabled: false
+
+# The kubelet/etcd/scheduler/controller-manager endpoints a single-node K3s server
+# does not expose on the expected ports, so their targets never go stale-red.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false

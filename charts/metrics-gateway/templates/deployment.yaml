@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metrics-gateway.fullname" . }}
+  labels:
+    {{- include "metrics-gateway.labels" . | nindent 4 }}
+spec:
+  # Kept at one: the gateway holds its metric registry in memory, so a second
+  # replica would serve /metrics from a different set of samples.
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "metrics-gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "metrics-gateway.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

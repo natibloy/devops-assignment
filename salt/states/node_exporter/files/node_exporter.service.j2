@@ -1,0 +1,26 @@
+{%- set exporter = pillar['monitoring']['node_exporter'] %}
+[Unit]
+Description=Prometheus node_exporter (Podman)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+# --replace makes a restart reclaim the container name instead of failing on a
+# leftover from a previous run, which is what keeps repeated highstates safe.
+ExecStart=/usr/bin/podman run \
+    --rm --replace \
+    --name {{ exporter.container_name }} \
+    --network host \
+    --pid host \
+    --read-only \
+    --volume /:/host:ro,rslave \
+    {{ exporter.image }}:{{ exporter.tag }} \
+    --path.rootfs=/host \
+    --web.listen-address=:{{ exporter.port }}
+ExecStop=/usr/bin/podman stop --ignore --time 10 {{ exporter.container_name }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,37 @@
+{#- Rendered identically on every node: Slurm requires a consistent slurm.conf
+    cluster-wide, so the same template and pillar drive both roles. -#}
+{%- set slurm = pillar['slurm'] %}
+{%- set nodes = pillar['network']['nodes'] %}
+ClusterName={{ slurm.cluster_name }}
+SlurmctldHost=controller({{ nodes.controller.ip }})
+
+SlurmUser=slurm
+SlurmctldPort={{ slurm.slurmctld_port }}
+SlurmdPort={{ slurm.slurmd_port }}
+AuthType=auth/munge
+CredType=cred/munge
+
+SlurmctldPidFile=/run/slurmctld.pid
+SlurmdPidFile=/run/slurmd.pid
+SlurmdSpoolDir=/var/spool/slurmd
+StateSaveLocation=/var/spool/slurmctld
+SlurmctldLogFile=/var/log/slurm/slurmctld.log
+SlurmdLogFile=/var/log/slurm/slurmd.log
+
+ProctrackType=proctrack/linuxproc
+TaskPlugin=task/none
+SchedulerType=sched/backfill
+SelectType=select/cons_tres
+SelectTypeParameters=CR_CPU_Memory
+ReturnToService=2
+
+# Job accounting into slurmdbd, which is what makes `sacct` work for the Phase 5
+# jobs.
+AccountingStorageType=accounting_storage/slurmdbd
+AccountingStorageHost=controller
+AccountingStoragePort={{ slurm.slurmdbd_port }}
+JobAcctGatherType=jobacct_gather/linux
+JobAcctGatherFrequency=10
+
+NodeName=compute NodeAddr={{ nodes.compute.ip }} CPUs={{ slurm.compute_node.cpus }} RealMemory={{ slurm.compute_node.real_memory }} State=UNKNOWN
+PartitionName={{ slurm.partition.name }} Nodes=compute Default={{ slurm.partition.default }} MaxTime={{ slurm.partition.max_time }} State={{ slurm.partition.state }}

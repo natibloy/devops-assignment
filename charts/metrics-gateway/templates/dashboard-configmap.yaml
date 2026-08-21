@@ -1,0 +1,16 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "metrics-gateway.fullname" . }}-dashboard
+  labels:
+    {{- include "metrics-gateway.labels" . | nindent 4 }}
+    # Watched by the Grafana sidecar, which imports the dashboard from any
+    # namespace without Grafana needing to be redeployed.
+    grafana_dashboard: "1"
+data:
+  {{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+  {{- end }}
+{{- end }}

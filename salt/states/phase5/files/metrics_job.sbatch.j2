@@ -1,0 +1,45 @@
+#!/bin/bash
+{%- set phase5 = pillar['phase5'] %}
+{%- set gateway = pillar['gateway'] %}
+#SBATCH --job-name=slurm-metrics-sim
+#SBATCH --partition={{ pillar['slurm']['partition']['name'] }}
+#SBATCH --ntasks=1
+#SBATCH --time=00:02:00
+#SBATCH --chdir=/tmp
+#SBATCH --output=/tmp/slurm-metrics-%j.out
+#
+# Runs on the compute node under slurmd, which is where SLURM_JOB_ID and
+# SLURMD_NODENAME are populated. Simulated CPU/GPU/memory samples are pushed to
+# the metrics gateway on a fixed interval; the gateway holds them so Prometheus
+# can still scrape values from a job that has already finished.
+set -u
+
+GATEWAY_URL="http://{{ pillar['network']['nodes']['compute']['ip'] }}:{{ gateway.node_port }}/update-metric"
+DURATION_SECONDS={{ phase5.job_duration_seconds }}
+INTERVAL_SECONDS={{ phase5.push_interval_seconds }}
+
+echo "job ${SLURM_JOB_ID} on ${SLURMD_NODENAME} reporting to ${GATEWAY_URL}"
+
+# A per-metric random walk looks more like real load than independent samples.
+{%- for metric in gateway.metrics %}
+value_{{ metric }}=$(( (RANDOM % 40) + 30 ))
+{%- endfor %}
+
+deadline=$(( SECONDS + DURATION_SECONDS ))
+while [ "${SECONDS}" -lt "${deadline}" ]; do
+{%- for metric in gateway.metrics %}
+  value_{{ metric }}=$(( value_{{ metric }} + (RANDOM % 21) - 10 ))
+  [ "${value_{{ metric }}}" -lt 0 ]   && value_{{ metric }}=0
+  [ "${value_{{ metric }}}" -gt 100 ] && value_{{ metric }}=100
+  curl -fsS --max-time 4 -X PUT "${GATEWAY_URL}" \
+    -H 'Content-Type: application/json' \
+    -d "{\"name\": \"slurm_job_{{ metric }}_usage_percent\",
+         \"value\": ${value_{{ metric }}},
+         \"labels\": {\"SLURM_JOB_ID\": \"${SLURM_JOB_ID}\",
+                      \"SLURMD_NODENAME\": \"${SLURMD_NODENAME}\"}}" \
+    >/dev/null || echo "warning: push of {{ metric }} failed"
+{%- endfor %}
+  sleep "${INTERVAL_SECONDS}"
+done
+
+echo "job ${SLURM_JOB_ID} finished reporting"

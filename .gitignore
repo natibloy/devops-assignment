@@ -1,0 +1,6 @@
+.vagrant/
+*.log
+
+# Build outputs produced by the builder node; the directory itself is tracked.
+artifacts/*
+!artifacts/.gitkeep

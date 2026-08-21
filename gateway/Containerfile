@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+RUN useradd --create-home --uid 10001 gateway
+USER 10001
+
+EXPOSE 8080
+
+# One worker only: the metric registry lives in process memory, so additional
+# workers would each answer /metrics from their own partial view.
+CMD ["gunicorn", "--workers", "1", "--threads", "8", "--bind", "0.0.0.0:8080", "app:app"]
