@@ -15,10 +15,19 @@ include:
 
 # The gateway image is built here and side-loaded on the compute node, so K3s
 # never needs a registry to pull from.
+#
+# cgroupfs is used instead of podman's default systemd cgroup manager: build
+# containers are short-lived and need no systemd scope, and asking systemd for one
+# over D-Bus fails outright if anything restarted dbus earlier in the highstate -
+# which the Slurm build-dependency installation directly above is liable to do.
 gateway-image-build:
   cmd.run:
-    - name: podman build -t {{ gateway_ref }} {{ gateway.build_context }}
+    - name: podman build --cgroup-manager=cgroupfs -t {{ gateway_ref }} {{ gateway.build_context }}
     - creates: {{ gateway_tar }}
+    - timeout: 900
+    - retry:
+        attempts: 3
+        interval: 15
     - require:
       - sls: podman
 
@@ -36,6 +45,10 @@ node-exporter-image-pull:
   cmd.run:
     - name: podman pull {{ exporter_ref }}
     - creates: {{ exporter_tar }}
+    - timeout: 600
+    - retry:
+        attempts: 3
+        interval: 15
     - require:
       - sls: podman
 

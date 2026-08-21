@@ -3,7 +3,12 @@
 {{- end -}}
 
 {{- define "metrics-gateway.fullname" -}}
-{{- printf "%s-%s" .Release.Name (include "metrics-gateway.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- $name := include "metrics-gateway.name" . -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "metrics-gateway.labels" -}}

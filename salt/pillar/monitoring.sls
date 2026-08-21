@@ -25,4 +25,4 @@ monitoring:
     # "Node Exporter Full" dashboard from grafana.com.
     node_exporter_dashboard:
       gnet_id: 1860
-      revision: 41
+      revision: 45

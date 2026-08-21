@@ -30,12 +30,17 @@ k3s-service:
       - cmd: k3s-install
 
 # Everything downstream shells out to kubectl/helm, so block until the API server
-# answers rather than letting each state discover the wait for itself.
+# answers rather than letting each state discover the wait for itself. The `unless`
+# keeps an already-converged cluster from reporting this barrier as a change on
+# every highstate.
 k3s-api-ready:
   cmd.run:
     - name: >-
         until k3s kubectl get --raw='/readyz' >/dev/null 2>&1; do sleep 5; done;
-        k3s kubectl wait --for=condition=Ready node/compute --timeout=300s
+        k3s kubectl wait --for=condition=Ready node/{{ grains['id'] }} --timeout=300s
+    - unless: >-
+        k3s kubectl get --raw='/readyz' >/dev/null 2>&1 &&
+        k3s kubectl get node {{ grains['id'] }} --no-headers | grep -qw Ready
     - timeout: 600
     - require:
       - service: k3s-service

@@ -13,8 +13,8 @@ slurm-controller-packages:
 slurm-state-dir:
   file.directory:
     - name: /var/spool/slurmctld
-    - user: slurm
-    - group: slurm
+    - user: {{ slurm.user.name }}
+    - group: {{ slurm.user.name }}
     - mode: '0755'
     - makedirs: True
     - require:
@@ -25,8 +25,8 @@ slurmdbd-conf:
     - name: /etc/slurm/slurmdbd.conf
     - source: salt://slurm/files/slurmdbd.conf.j2
     - template: jinja
-    - user: slurm
-    - group: slurm
+    - user: {{ slurm.user.name }}
+    - group: {{ slurm.user.name }}
     - mode: '0600'
     - require:
       - pkg: slurm-controller-packages
@@ -40,7 +40,7 @@ slurmdbd-service:
     - watch:
       - file: slurmdbd-conf
     - require:
-      - mysql_grants: slurm-acct-grants
+      - cmd: slurm-acct-provision
       - file: slurm-log-dir
 
 slurmctld-service:

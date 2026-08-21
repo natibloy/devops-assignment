@@ -5,7 +5,7 @@
 ClusterName={{ slurm.cluster_name }}
 SlurmctldHost=controller({{ nodes.controller.ip }})
 
-SlurmUser=slurm
+SlurmUser={{ slurm.user.name }}
 SlurmctldPort={{ slurm.slurmctld_port }}
 SlurmdPort={{ slurm.slurmd_port }}
 AuthType=auth/munge

@@ -2,7 +2,7 @@
 AuthType=auth/munge
 DbdHost=controller
 DbdPort={{ slurm.slurmdbd_port }}
-SlurmUser=slurm
+SlurmUser={{ slurm.user.name }}
 
 DebugLevel=info
 LogFile=/var/log/slurm/slurmdbd.log

@@ -19,6 +19,15 @@ slurm:
       - slurm-smd-slurmdbd
     compute:
       - slurm-smd-slurmd
+  # Slurm's debian packaging ships no postinst, so the service account has to be
+  # created by configuration management. The uid/gid are pinned because Slurm
+  # requires the SlurmUser to resolve to the same id on every node in the cluster.
+  user:
+    name: slurm
+    uid: 64030
+    gid: 64030
+    home: /var/lib/slurm
+    shell: /usr/sbin/nologin
   db:
     name: slurm_acct_db
     user: slurm

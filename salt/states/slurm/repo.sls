@@ -1,18 +1,33 @@
-{%- set version = salt['pillar.get']('slurm:version') %}
+{%- set slurm = salt['pillar.get']('slurm') %}
 {%- set debs = '/srv/artifacts/debs' %}
+{%- set probe = slurm.packages.controller[0] %}
 
 # The builder published its output as a flat apt repository. Pointing apt at it
 # lets the Slurm packages be installed with pkg.installed, with apt resolving the
 # dependencies between them and against Debian's own archive.
+#
+# The repository is written as a plain file rather than with pkgrepo.managed:
+# pkgrepo needs python-apt importable from Salt's bundled interpreter, which the
+# onedir packages do not provide on Debian.
 slurm-artifacts-present:
   file.exists:
-    - name: {{ debs }}/.built-{{ version }}
+    - name: {{ debs }}/.built-{{ slurm.version }}
 
 slurm-local-repo:
-  pkgrepo.managed:
-    - name: deb [trusted=yes] file:{{ debs }} ./
-    - file: /etc/apt/sources.list.d/slurm-local.list
-    - clean_file: True
-    - refresh: True
+  file.managed:
+    - name: /etc/apt/sources.list.d/slurm-local.list
+    - mode: '0644'
+    - contents: |
+        # Local repository of the DEBs built by the builder node.
+        deb [trusted=yes] file:{{ debs }} ./
     - require:
       - file: slurm-artifacts-present
+
+# Refreshes when the Slurm packages are not yet visible to apt, which covers both
+# the first run and a stale cache, and is a no-op once they are.
+slurm-local-repo-refresh:
+  cmd.run:
+    - name: apt-get update
+    - unless: "apt-cache policy {{ probe }} | grep -qE 'Candidate: [0-9]'"
+    - require:
+      - file: slurm-local-repo
