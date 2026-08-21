@@ -38,6 +38,10 @@ git clone <this-repo> && cd devops-assignment
 vagrant up
 ```
 
+> If this fails immediately with `VERR_INTNET_FLT_IF_NOT_FOUND`, VirtualBox cannot
+> attach its host-only adapter — see [Troubleshooting](#troubleshooting) for the
+> one-line workaround that needs no reboot.
+
 Then add one line to your hosts file so the browser can find Grafana.
 
 - **Windows** (`C:\Windows\System32\drivers\etc\hosts`, as Administrator)
