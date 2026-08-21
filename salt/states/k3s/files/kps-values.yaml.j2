@@ -64,19 +64,18 @@ prometheus:
       limits:
         memory: 1500Mi
 
-    # Pick up ServiceMonitors that do not carry this release's helm labels, which
-    # is what lets the separately-installed metrics-gateway chart be scraped.
-    serviceMonitorSelectorNilUsesHelmValues: false
-
     # Both host node exporters are scraped from here rather than through the
     # chart's own ServiceMonitor, so the controller (Podman) and the compute node
     # (DaemonSet) are covered by one explicit job.
+    #
+    # Derived from the node map so adding a node to the pillar also scrapes it.
+    # The builder is excluded: it is ephemeral and runs no exporter.
     additionalScrapeConfigs:
       - job_name: node-exporter-hosts
         static_configs:
-{%- for name in ['controller', 'compute'] %}
+{%- for name, node in nodes.items() if node.role != 'builder' %}
           - targets:
-              - '{{ nodes[name].ip }}:{{ exporter_port }}'
+              - '{{ node.ip }}:{{ exporter_port }}'
             labels:
               node: {{ name }}
               instance: {{ name }}

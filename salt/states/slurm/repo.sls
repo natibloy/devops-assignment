@@ -1,6 +1,9 @@
+{%- import 'artifacts.jinja' as artifacts with context %}
 {%- set slurm = salt['pillar.get']('slurm') %}
-{%- set debs = '/srv/artifacts/debs' %}
-{%- set probe = slurm.packages.controller[0] %}
+{%- set debs = artifacts.debs %}
+{#- Probed to decide whether apt can already see the local repository. Taken from
+    the packages both roles install, since this state applies to both. -#}
+{%- set probe = slurm.packages.common[0] %}
 
 # The builder published its output as a flat apt repository. Pointing apt at it
 # lets the Slurm packages be installed with pkg.installed, with apt resolving the
@@ -11,7 +14,7 @@
 # onedir packages do not provide on Debian.
 slurm-artifacts-present:
   file.exists:
-    - name: {{ debs }}/.built-{{ slurm.version }}
+    - name: {{ artifacts.build_sentinel(slurm.version) }}
 
 slurm-local-repo:
   file.managed:

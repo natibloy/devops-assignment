@@ -1,8 +1,15 @@
+{%- import 'artifacts.jinja' as artifacts with context %}
+{%- import 'k3s/macros.jinja' as k8s with context %}
 {%- set gateway = salt['pillar.get']('gateway') %}
 {%- set k3s = salt['pillar.get']('monitoring:k3s') %}
+{%- set kps = salt['pillar.get']('monitoring:kube_prometheus_stack') %}
 {%- set ref = gateway.image.name ~ ':' ~ gateway.image.tag %}
-{%- set tar = '/srv/artifacts/images/metrics-gateway-' ~ gateway.image.tag ~ '.tar' %}
+{%- set tar = artifacts.image_tar('metrics-gateway', gateway.image.tag) %}
 {%- set stamp = k3s.values_dir ~ '/.gateway-deployed' %}
+{#- Covers the whole chart directory, so editing a template or the dashboard on
+    the host redeploys on the next highstate. Defined once because the deploy
+    writes it and its guard re-evaluates it. -#}
+{%- set hash_cmd = "find " ~ gateway.chart_path ~ " -type f -exec sha256sum {} + | sort -k2 | sha256sum | cut -d' ' -f1" %}
 
 include:
   - k3s
@@ -14,24 +21,16 @@ include:
 gateway-image-import:
   cmd.run:
     - name: k3s ctr images import {{ tar }}
-    - unless: k3s ctr images ls -q | grep -qx 'docker.io/{{ ref }}' || k3s ctr images ls -q | grep -qx '{{ ref }}'
+    - unless: k3s ctr images ls -q | grep -qx '{{ ref }}'
     - timeout: 300
     - require:
       - cmd: k3s-api-ready
 
-gateway-namespace:
-  cmd.run:
-    - name: kubectl create namespace {{ gateway.namespace }} --dry-run=client -o yaml | kubectl apply -f -
-    - env:
-      - KUBECONFIG: {{ k3s.kubeconfig }}
-    - unless: kubectl --kubeconfig {{ k3s.kubeconfig }} get namespace {{ gateway.namespace }}
-    - require:
-      - cmd: k3s-api-ready
-      - file: kubectl-symlink
+{{ k8s.namespace('gateway-namespace', gateway.namespace) }}
 
-# Same stamp pattern as the Prometheus stack: the hash covers the whole chart
-# directory, so editing a template or the dashboard on the host triggers a
-# redeploy on the next highstate and nothing else does.
+# The ServiceMonitor's release label has to match the kube-prometheus-stack
+# release for Prometheus to select it, so Salt passes it in rather than letting
+# the chart carry a second copy of a name this pillar already owns.
 gateway-release:
   cmd.run:
     - name: >-
@@ -41,15 +40,13 @@ gateway-release:
         --set image.tag={{ gateway.image.tag }}
         --set service.port={{ gateway.port }}
         --set service.nodePort={{ gateway.node_port }}
+        --set serviceMonitor.labels.release={{ kps.release }}
         --wait --timeout 5m
-        && find {{ gateway.chart_path }} -type f -exec sha256sum {} + | sort -k2 | sha256sum | cut -d' ' -f1 > {{ stamp }}
+        && {{ hash_cmd }} > {{ stamp }}
     - env:
       - KUBECONFIG: {{ k3s.kubeconfig }}
     - timeout: 600
-    - unless: >-
-        test "$(cat {{ stamp }} 2>/dev/null)"
-        = "$(find {{ gateway.chart_path }} -type f -exec sha256sum {} + | sort -k2 | sha256sum | cut -d' ' -f1)"
-        && helm -n {{ gateway.namespace }} status {{ gateway.release }} >/dev/null 2>&1
+{{ k8s.release_converged(gateway.namespace, gateway.release, stamp, hash_cmd) }}
     - require:
       - cmd: gateway-image-import
       - cmd: gateway-namespace

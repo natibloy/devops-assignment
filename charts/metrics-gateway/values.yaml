@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: localhost/metrics-gateway
-  tag: "0.1.0"
+  tag: "0.2.0"
   # The image is side-loaded into containerd from the builder's export, so pulling
   # must never be attempted.
   pullPolicy: IfNotPresent
@@ -15,7 +15,9 @@ service:
 serviceMonitor:
   enabled: true
   interval: 15s
-  # Matches the kube-prometheus-stack release so Prometheus selects this monitor.
+  # Prometheus selects ServiceMonitors carrying its own release label. Salt
+  # overrides this with the release name from its pillar, which owns it; the value
+  # here is only a standalone-install default.
   labels:
     release: kps
 

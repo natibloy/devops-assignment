@@ -1,6 +1,7 @@
+{%- import 'artifacts.jinja' as artifacts with context %}
 {%- set exporter = salt['pillar.get']('monitoring:node_exporter') %}
 {%- set ref = exporter.image ~ ':' ~ exporter.tag %}
-{%- set tar = '/srv/artifacts/images/node-exporter-' ~ exporter.tag ~ '.tar' %}
+{%- set tar = artifacts.image_tar('node-exporter', exporter.tag) %}
 
 include:
   - podman

@@ -1,0 +1,35 @@
+{#- Shared idioms for the two Helm releases on the compute node.
+
+    Import with context so the pillar is reachable:
+        {% import 'k3s/macros.jinja' as k8s with context %}
+-#}
+{%- set kubeconfig = salt['pillar.get']('monitoring:k3s:kubeconfig') %}
+
+{#- `create --dry-run | apply` is the idempotent way to converge a namespace;
+    plain `kubectl create` fails once it exists. -#}
+{%- macro namespace(state_id, name) %}
+{{ state_id }}:
+  cmd.run:
+    - name: kubectl create namespace {{ name }} --dry-run=client -o yaml | kubectl apply -f -
+    - env:
+      - KUBECONFIG: {{ kubeconfig }}
+    - unless: kubectl --kubeconfig {{ kubeconfig }} get namespace {{ name }}
+    - require:
+      - cmd: k3s-api-ready
+      - file: kubectl-symlink
+{%- endmacro %}
+
+{#- Emits the `unless` guard for a Helm release deployed through the stamp pattern.
+
+    Salt skips the state only when every command in the list succeeds, so the two
+    conditions read as an AND without shell glue.
+
+    The stamp holds the hash of the release's inputs as of the last *successful*
+    deploy, and is only written when helm exits 0. Also requiring the release to
+    report `deployed` means one left in `failed` is retried, rather than being
+    taken for converged because its inputs happen to be unchanged. -#}
+{%- macro release_converged(namespace, release, stamp, hash_cmd) %}
+    - unless:
+      - test "$(cat {{ stamp }} 2>/dev/null)" = "$({{ hash_cmd }})"
+      - helm -n {{ namespace }} status {{ release }} -o json 2>/dev/null | grep -q '"status":"deployed"'
+{%- endmacro %}

@@ -20,6 +20,9 @@ spec:
         - name: gateway
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

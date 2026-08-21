@@ -1,9 +1,12 @@
+{%- import 'k3s/macros.jinja' as k8s with context %}
 {%- set monitoring = salt['pillar.get']('monitoring') %}
 {%- set k3s = monitoring.k3s %}
 {%- set kps = monitoring.kube_prometheus_stack %}
 {%- set grafana = monitoring.grafana %}
 {%- set values_file = k3s.values_dir ~ '/kps-values.yaml' %}
 {%- set stamp = k3s.values_dir ~ '/.kps-deployed' %}
+{#- Written by the deploy and re-evaluated by its guard, so it is defined once. -#}
+{%- set hash_cmd = "sha256sum " ~ values_file ~ " | cut -d' ' -f1" %}
 {%- set crt = k3s.tls_dir ~ '/grafana.crt' %}
 {%- set key = k3s.tls_dir ~ '/grafana.key' %}
 
@@ -36,15 +39,7 @@ grafana-tls-cert:
     - require:
       - file: {{ k3s.tls_dir }}
 
-monitoring-namespace:
-  cmd.run:
-    - name: kubectl create namespace {{ kps.namespace }} --dry-run=client -o yaml | kubectl apply -f -
-    - env:
-      - KUBECONFIG: {{ k3s.kubeconfig }}
-    - unless: kubectl --kubeconfig {{ k3s.kubeconfig }} get namespace {{ kps.namespace }}
-    - require:
-      - cmd: k3s-api-ready
-      - file: kubectl-symlink
+{{ k8s.namespace('monitoring-namespace', kps.namespace) }}
 
 # create --dry-run | apply is the idempotent way to converge a TLS secret; plain
 # `kubectl create secret` fails once it already exists.
@@ -70,12 +65,9 @@ kps-values:
     - require:
       - file: {{ k3s.values_dir }}
 
-# `upgrade --install` converges rather than failing on an existing release.
-#
-# The stamp file records the values-file hash of the last successful deploy, and
-# is only written when helm exits 0. So a no-op highstate skips the upgrade
-# entirely (no empty Helm revisions), a changed values file or chart version
-# forces one, and a failed deploy is retried on the next run.
+# `upgrade --install` converges rather than failing on an existing release, and
+# the stamp guard makes a no-op highstate skip Helm entirely while a changed
+# values file or a previously failed release still forces a deploy.
 kps-release:
   cmd.run:
     - name: >-
@@ -84,14 +76,11 @@ kps-release:
         --namespace {{ kps.namespace }}
         --values {{ values_file }}
         --wait --timeout 20m
-        && sha256sum {{ values_file }} | cut -d' ' -f1 > {{ stamp }}
+        && {{ hash_cmd }} > {{ stamp }}
     - env:
       - KUBECONFIG: {{ k3s.kubeconfig }}
     - timeout: 1500
-    - unless: >-
-        test "$(cat {{ stamp }} 2>/dev/null)" = "$(sha256sum {{ values_file }} | cut -d' ' -f1)"
-        && helm -n {{ kps.namespace }} list -o json 2>/dev/null |
-        grep -q '"chart":"kube-prometheus-stack-{{ kps.chart_version }}"'
+{{ k8s.release_converged(kps.namespace, kps.release, stamp, hash_cmd) }}
     - require:
       - cmd: helm-repo
       - cmd: grafana-tls-secret

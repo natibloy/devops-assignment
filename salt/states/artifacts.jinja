@@ -1,0 +1,25 @@
+{#- Layout of the shared artifact folder.
+
+    The builder writes these paths and the controller and compute nodes read them,
+    so both sides import this file rather than rebuilding the same filename
+    conventions independently. Renaming an export here changes the import in the
+    same edit, instead of failing at runtime on another node.
+
+    Import with context so the pillar is reachable:
+        {% import 'artifacts.jinja' as artifacts with context %}
+-#}
+{%- set root = salt['pillar.get']('artifacts:root') %}
+{%- set debs = root ~ '/debs' %}
+{%- set images = root ~ '/images' %}
+
+{#- Exported container image, as written by `podman save` and read by
+    `podman load` / `k3s ctr images import`. -#}
+{%- macro image_tar(short_name, tag) -%}
+{{ images }}/{{ short_name }}-{{ tag }}.tar
+{%- endmacro %}
+
+{#- Written only after the deb repository is fully indexed, so its presence is
+    what the consumers gate on. -#}
+{%- macro build_sentinel(version) -%}
+{{ debs }}/.built-{{ version }}
+{%- endmacro %}

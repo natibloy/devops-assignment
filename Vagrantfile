@@ -15,9 +15,15 @@ require 'yaml'
 require 'fileutils'
 
 REPO_ROOT = File.dirname(__FILE__)
-NET       = YAML.load_file(File.join(REPO_ROOT, 'salt', 'pillar', 'network.sls'))['network']
+def pillar(name, key)
+  YAML.load_file(File.join(REPO_ROOT, 'salt', 'pillar', "#{name}.sls"))[key]
+end
+
+NET       = pillar('network', 'network')
 NODES     = NET['nodes']
-GATEWAY   = YAML.load_file(File.join(REPO_ROOT, 'salt', 'pillar', 'gateway.sls'))['gateway']
+GATEWAY   = pillar('gateway', 'gateway')
+SLURM     = pillar('slurm', 'slurm')
+ARTIFACTS = pillar('artifacts', 'artifacts')['root']
 
 # 'hostonly' is the normal mode: the private network is a VirtualBox host-only
 # adapter, so the host browser reaches Grafana directly at the compute node's IP.
@@ -45,7 +51,7 @@ File.write(COMPUTE_MINION_CONF, <<~CONF)
   master: #{NODES['controller']['ip']}
 
   grains:
-    role: compute
+    role: #{NODES['compute']['role']}
 
   log_level: info
 CONF
@@ -68,7 +74,7 @@ Vagrant.configure('2') do |config|
   # Artifacts are handed from the builder to the other two nodes through the host.
   # The explicit modes matter: apt drops privileges to the `_apt` user when reading
   # the local deb repository, and vboxsf's default 0770 would shut it out.
-  config.vm.synced_folder 'artifacts', '/srv/artifacts', type: 'virtualbox',
+  config.vm.synced_folder 'artifacts', ARTIFACTS, type: 'virtualbox',
     mount_options: ['dmode=0755', 'fmode=0644']
 
   NODES.each do |name, node|
@@ -113,15 +119,19 @@ Vagrant.configure('2') do |config|
         end
 
         # Fail loudly here rather than letting the controller discover missing
-        # artifacts halfway through its own highstate.
+        # artifacts halfway through its own highstate. The package list comes from
+        # the pillar the other nodes install from, so this gate cannot drift into
+        # passing on a build that is missing something they need.
+        installed_debs = SLURM['packages'].values.flatten
         machine.vm.provision 'verify-artifacts', type: 'shell', inline: <<~SHELL
           set -e
-          test -s /srv/artifacts/debs/Packages.gz
-          ls /srv/artifacts/debs/slurm-smd-slurmctld_*.deb >/dev/null
-          ls /srv/artifacts/debs/slurm-smd-slurmd_*.deb    >/dev/null
-          ls /srv/artifacts/debs/slurm-smd-slurmdbd_*.deb  >/dev/null
-          ls /srv/artifacts/images/metrics-gateway-*.tar    >/dev/null
-          echo "artifacts verified: $(ls /srv/artifacts/debs/*.deb | wc -l) debs"
+          test -f #{ARTIFACTS}/debs/.built-#{SLURM['version']}
+          test -s #{ARTIFACTS}/debs/Packages.gz
+          for pkg in #{installed_debs.join(' ')}; do
+            ls #{ARTIFACTS}/debs/"$pkg"_*.deb >/dev/null
+          done
+          ls #{ARTIFACTS}/images/metrics-gateway-*.tar >/dev/null
+          echo "artifacts verified: $(ls #{ARTIFACTS}/debs/*.deb | wc -l) debs"
         SHELL
 
         # Delayed so this provisioner exits 0 and Vagrant disconnects cleanly

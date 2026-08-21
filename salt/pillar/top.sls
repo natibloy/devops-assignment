@@ -1,5 +1,6 @@
 base:
   '*':
+    - artifacts
     - network
     - slurm
     - monitoring

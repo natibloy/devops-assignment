@@ -28,9 +28,7 @@ munge-key:
         base64 -d /etc/munge/munge.key.b64 > /etc/munge/munge.key
         chown munge:munge /etc/munge/munge.key
         chmod 0400 /etc/munge/munge.key
-    - unless: >-
-        test "$(base64 -w0 /etc/munge/munge.key 2>/dev/null)"
-        = "$(cat /etc/munge/munge.key.b64)"
+    - unless: base64 -d /etc/munge/munge.key.b64 | cmp -s - /etc/munge/munge.key
     - require:
       - file: munge-key-encoded
 

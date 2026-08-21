@@ -2,7 +2,6 @@ slurm:
   # Latest stable release at time of writing. Bumping this value is the only
   # change needed to rebuild against a newer Slurm.
   version: '26.05.3'
-  deb_revision: '1'
   source_url: https://download.schedmd.com/slurm
   cluster_name: lab
   slurmctld_port: 6817
@@ -37,8 +36,8 @@ slurm:
     default: 'YES'
     max_time: INFINITE
     state: UP
-  # Resources advertised to slurmctld for the compute node. Kept below the VM's
-  # real memory so the kernel and K3s are not starved.
+  # Advertised to slurmctld for the compute node. The CPU count comes from the
+  # node's VM sizing in network.sls; memory is deliberately below the VM's real
+  # memory so the kernel and K3s are not starved.
   compute_node:
-    cpus: 6
     real_memory: 6144

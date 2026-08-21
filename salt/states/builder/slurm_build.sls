@@ -1,9 +1,10 @@
+{%- import 'artifacts.jinja' as artifacts with context %}
 {%- set slurm = salt['pillar.get']('slurm') %}
 {%- set version = slurm.version %}
 {%- set src = slurm.build_dir ~ '/slurm-' ~ version %}
-{%- set tarball = slurm.build_dir ~ '/slurm-' ~ version ~ '.tar.bz2' %}
-{%- set debs = '/srv/artifacts/debs' %}
-{%- set sentinel = debs ~ '/.built-' ~ version %}
+{%- set tarball = src ~ '.tar.bz2' %}
+{%- set debs = artifacts.debs %}
+{%- set sentinel = artifacts.build_sentinel(version) %}
 
 # Slurm ships its own debian/ packaging, which produces the separated
 # slurm-smd-* packages (client, slurmctld, slurmd, slurmdbd, ...) rather than one
@@ -60,21 +61,33 @@ slurm-build-deps:
 
 # debuild is deliberately run on the guest filesystem: the VirtualBox shared
 # folder cannot represent the symlinks and hardlinks dpkg-buildpackage creates.
+#
+# Only five of Slurm's seventeen binary packages are ever installed, so the build
+# options drop the work whose output nothing here consumes: noautodbgsym skips the
+# debug packages (over half the bytes copied to the share), nodoc the manuals,
+# nocheck the test suite, and --no-lintian the packaging audit of all seventeen.
+# dpkg-buildpackage rather than debuild: debuild's only additions here are package
+# signing, which -uc -us disables anyway, and a lintian run whose output nothing
+# reads. It also sanitises the environment, which is a trap for the build options
+# below - dpkg-buildpackage reads them straight from it.
 slurm-debuild:
   cmd.run:
-    - name: debuild -b -uc -us
+    - name: dpkg-buildpackage -b -uc -us
     - cwd: {{ src }}
     - env:
-      - DEB_BUILD_OPTIONS: parallel={{ grains['num_cpus'] }}
+      - DEB_BUILD_OPTIONS: parallel={{ grains['num_cpus'] }} noautodbgsym nodoc nocheck
       - DEBIAN_FRONTEND: noninteractive
     - timeout: 3600
     - unless: test -f {{ sentinel }}
     - require:
       - cmd: slurm-build-deps
 
+# dpkg-buildpackage drops its output in the parent of the source tree, so the glob
+# is pinned to this version: a previous build of a different version leaves its own
+# debs there, and copying those too would publish two versions in the repository.
 slurm-export-debs:
   cmd.run:
-    - name: cp {{ slurm.build_dir }}/*.deb {{ debs }}/
+    - name: cp {{ slurm.build_dir }}/*_{{ version }}-*.deb {{ debs }}/
     - unless: test -f {{ sentinel }}
     - require:
       - cmd: slurm-debuild
@@ -91,6 +104,8 @@ slurm-apt-index:
     - require:
       - cmd: slurm-export-debs
 
+# Written last, so its presence means "the repository is complete and indexed" to
+# every consumer, not merely "a build happened".
 slurm-build-sentinel:
   file.managed:
     - name: {{ sentinel }}

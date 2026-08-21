@@ -19,7 +19,10 @@ k3s-install:
         --tls-san {{ node_ip }}
         --write-kubeconfig-mode 0644'
         sh -s -
-    - creates: /usr/local/bin/k3s
+    # Guarded on the pinned version rather than on the binary existing, so
+    # bumping monitoring:k3s:version actually upgrades the node instead of
+    # silently reporting success against the old one.
+    - unless: k3s --version 2>/dev/null | grep -qF '{{ k3s.version }}'
     - timeout: 900
 
 k3s-service:
@@ -38,9 +41,7 @@ k3s-api-ready:
     - name: >-
         until k3s kubectl get --raw='/readyz' >/dev/null 2>&1; do sleep 5; done;
         k3s kubectl wait --for=condition=Ready node/{{ grains['id'] }} --timeout=300s
-    - unless: >-
-        k3s kubectl get --raw='/readyz' >/dev/null 2>&1 &&
-        k3s kubectl get node {{ grains['id'] }} --no-headers | grep -qw Ready
+    - unless: k3s kubectl get node {{ grains['id'] }} --no-headers 2>/dev/null | grep -qw Ready
     - timeout: 600
     - require:
       - service: k3s-service

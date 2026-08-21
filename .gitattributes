@@ -1,17 +1,7 @@
-# Guests are Linux; CRLF in any of these would break shell/Salt/YAML parsing.
+# Guests are Linux; CRLF in any shell, Salt, YAML or Jinja file would break the
+# parser that reads it. The first line covers every text file, so per-extension
+# rules below it would be redundant.
 * text=auto eol=lf
-
-*.sh      text eol=lf
-*.sls     text eol=lf
-*.j2      text eol=lf
-*.conf    text eol=lf
-*.yaml    text eol=lf
-*.yml     text eol=lf
-*.json    text eol=lf
-*.py      text eol=lf
-*.sbatch  text eol=lf
-Vagrantfile   text eol=lf
-Containerfile text eol=lf
 
 *.deb  binary
 *.tar  binary

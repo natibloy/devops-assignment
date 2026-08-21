@@ -1,15 +1,15 @@
+{%- import 'artifacts.jinja' as artifacts with context %}
 {%- set gateway = salt['pillar.get']('gateway') %}
 {%- set node_exporter = salt['pillar.get']('monitoring:node_exporter') %}
-{%- set images = '/srv/artifacts/images' %}
 {%- set gateway_ref = gateway.image.name ~ ':' ~ gateway.image.tag %}
-{%- set gateway_tar = images ~ '/metrics-gateway-' ~ gateway.image.tag ~ '.tar' %}
+{%- set gateway_tar = artifacts.image_tar('metrics-gateway', gateway.image.tag) %}
 {%- set exporter_ref = node_exporter.image ~ ':' ~ node_exporter.tag %}
-{%- set exporter_tar = images ~ '/node-exporter-' ~ node_exporter.tag ~ '.tar' %}
+{%- set exporter_tar = artifacts.image_tar('node-exporter', node_exporter.tag) %}
 
 include:
   - podman
 
-{{ images }}:
+{{ artifacts.images }}:
   file.directory:
     - makedirs: True
 
@@ -19,11 +19,11 @@ include:
 # cgroupfs is used instead of podman's default systemd cgroup manager: build
 # containers are short-lived and need no systemd scope, and asking systemd for one
 # over D-Bus fails outright if anything restarted dbus earlier in the highstate -
-# which the Slurm build-dependency installation directly above is liable to do.
+# which the Slurm build-dependency installation is liable to do.
 gateway-image-build:
   cmd.run:
     - name: podman build --cgroup-manager=cgroupfs -t {{ gateway_ref }} {{ gateway.build_context }}
-    - creates: {{ gateway_tar }}
+    - unless: test -f {{ gateway_tar }}
     - timeout: 900
     - retry:
         attempts: 3
@@ -37,14 +37,14 @@ gateway-image-export:
     - creates: {{ gateway_tar }}
     - require:
       - cmd: gateway-image-build
-      - file: {{ images }}
+      - file: {{ artifacts.images }}
 
 # Exported alongside so the controller can start node_exporter from the shared
 # folder rather than reaching out to quay.io during its own highstate.
 node-exporter-image-pull:
   cmd.run:
     - name: podman pull {{ exporter_ref }}
-    - creates: {{ exporter_tar }}
+    - unless: test -f {{ exporter_tar }}
     - timeout: 600
     - retry:
         attempts: 3
@@ -58,4 +58,4 @@ node-exporter-image-export:
     - creates: {{ exporter_tar }}
     - require:
       - cmd: node-exporter-image-pull
-      - file: {{ images }}
+      - file: {{ artifacts.images }}

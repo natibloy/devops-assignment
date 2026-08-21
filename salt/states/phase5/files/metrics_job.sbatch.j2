@@ -18,27 +18,29 @@ GATEWAY_URL="http://{{ pillar['network']['nodes']['compute']['ip'] }}:{{ gateway
 DURATION_SECONDS={{ phase5.job_duration_seconds }}
 INTERVAL_SECONDS={{ phase5.push_interval_seconds }}
 
+# Jinja supplies only the metric list; the reporting loop below is plain shell.
+METRICS=({{ gateway.metrics | join(' ') }})
+
 echo "job ${SLURM_JOB_ID} on ${SLURMD_NODENAME} reporting to ${GATEWAY_URL}"
 
 # A per-metric random walk looks more like real load than independent samples.
-{%- for metric in gateway.metrics %}
-value_{{ metric }}=$(( (RANDOM % 40) + 30 ))
-{%- endfor %}
+declare -A value
+for m in "${METRICS[@]}"; do
+  value[$m]=$(( (RANDOM % 40) + 30 ))
+done
 
 deadline=$(( SECONDS + DURATION_SECONDS ))
 while [ "${SECONDS}" -lt "${deadline}" ]; do
-{%- for metric in gateway.metrics %}
-  value_{{ metric }}=$(( value_{{ metric }} + (RANDOM % 21) - 10 ))
-  [ "${value_{{ metric }}}" -lt 0 ]   && value_{{ metric }}=0
-  [ "${value_{{ metric }}}" -gt 100 ] && value_{{ metric }}=100
-  curl -fsS --max-time 4 -X PUT "${GATEWAY_URL}" \
-    -H 'Content-Type: application/json' \
-    -d "{\"name\": \"slurm_job_{{ metric }}_usage_percent\",
-         \"value\": ${value_{{ metric }}},
-         \"labels\": {\"SLURM_JOB_ID\": \"${SLURM_JOB_ID}\",
-                      \"SLURMD_NODENAME\": \"${SLURMD_NODENAME}\"}}" \
-    >/dev/null || echo "warning: push of {{ metric }} failed"
-{%- endfor %}
+  for m in "${METRICS[@]}"; do
+    v=$(( value[$m] + (RANDOM % 21) - 10 ))
+    [ "${v}" -lt 0 ]   && v=0
+    [ "${v}" -gt 100 ] && v=100
+    value[$m]=${v}
+    curl -fsS --max-time 4 -X PUT "${GATEWAY_URL}" \
+      -H 'Content-Type: application/json' \
+      -d "{\"name\":\"slurm_job_${m}_usage_percent\",\"value\":${v},\"labels\":{\"SLURM_JOB_ID\":\"${SLURM_JOB_ID}\",\"SLURMD_NODENAME\":\"${SLURMD_NODENAME}\"}}" \
+      >/dev/null || echo "warning: push of ${m} failed"
+  done
   sleep "${INTERVAL_SECONDS}"
 done
 

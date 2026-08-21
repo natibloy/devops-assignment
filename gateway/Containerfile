@@ -10,8 +10,13 @@ COPY app.py .
 RUN useradd --create-home --uid 10001 gateway
 USER 10001
 
+ENV PORT=8080
 EXPOSE 8080
 
+# The listen port comes from the environment so the Deployment can set it from the
+# same pillar value it uses for the Service and the probes, instead of the image
+# hardcoding a port those could drift away from.
+#
 # One worker only: the metric registry lives in process memory, so additional
 # workers would each answer /metrics from their own partial view.
-CMD ["gunicorn", "--workers", "1", "--threads", "8", "--bind", "0.0.0.0:8080", "app:app"]
+CMD ["sh", "-c", "exec gunicorn --workers 1 --threads 8 --bind 0.0.0.0:${PORT} app:app"]

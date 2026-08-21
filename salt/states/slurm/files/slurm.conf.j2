@@ -18,6 +18,9 @@ StateSaveLocation=/var/spool/slurmctld
 SlurmctldLogFile=/var/log/slurm/slurmctld.log
 SlurmdLogFile=/var/log/slurm/slurmd.log
 
+# No cgroup-aware plugin is selected: these guests run one job at a time, and
+# cgroup v2 delegation inside the box buys no isolation worth its failure modes.
+# That also means Slurm never reads a cgroup.conf, so none is shipped.
 ProctrackType=proctrack/linuxproc
 TaskPlugin=task/none
 SchedulerType=sched/backfill
@@ -33,5 +36,5 @@ AccountingStoragePort={{ slurm.slurmdbd_port }}
 JobAcctGatherType=jobacct_gather/linux
 JobAcctGatherFrequency=10
 
-NodeName=compute NodeAddr={{ nodes.compute.ip }} CPUs={{ slurm.compute_node.cpus }} RealMemory={{ slurm.compute_node.real_memory }} State=UNKNOWN
+NodeName=compute NodeAddr={{ nodes.compute.ip }} CPUs={{ nodes.compute.cpus }} RealMemory={{ slurm.compute_node.real_memory }} State=UNKNOWN
 PartitionName={{ slurm.partition.name }} Nodes=compute Default={{ slurm.partition.default }} MaxTime={{ slurm.partition.max_time }} State={{ slurm.partition.state }}

@@ -147,7 +147,10 @@ by the builder and the controller instead of two copies.
 
 Slurm is built with its own `debian/` packaging (`mk-build-deps` + `debuild`), which
 is what produces the separated `slurm-smd`, `slurm-smd-client`, `slurm-smd-slurmctld`,
-`slurm-smd-slurmd` and `slurm-smd-slurmdbd` packages. The build runs in
+`slurm-smd-slurmd` and `slurm-smd-slurmdbd` packages. Only those five of Slurm's
+seventeen binary packages are ever installed, so the build skips the work nothing
+here consumes — debug packages, manuals, the test suite and the packaging audit —
+which more than halves both the build time and the bytes crossing the shared folder. The build runs in
 `/root/build` on the guest, never in the shared folder — VirtualBox's vboxsf cannot
 represent the symlinks and hardlinks `dpkg-buildpackage` creates. Only the finished
 `.deb` files are copied out, then indexed with `dpkg-scanpackages` so the other nodes
@@ -162,7 +165,10 @@ through the identical `state.highstate` path rather than one being special-cased
 
 `salt/states/top.sls` targets on the `role` grain, so no state ever needs to know a
 node's hostname. Every tunable, credential, version and address lives in
-`salt/pillar/`; the state files and templates contain no literal values.
+`salt/pillar/`; the state files and templates contain no literal values. The one
+cross-node contract — the layout of the shared artifact folder — is derived in
+`salt/states/artifacts.jinja` from a single pillar key, so the builder that writes
+an export and the node that reads it can never disagree about its name.
 
 Idempotency, state by state:
 
@@ -177,7 +183,8 @@ Idempotency, state by state:
 | `k3s-api-ready` | A readiness barrier, guarded so a converged cluster does not report it as a change every run |
 | `slurm.*` | `pkg.installed` from the local apt repo; configs via `file.managed` with services on `watch` |
 | `k3s`, `helm` | `creates:` / version guards |
-| `kps-release`, `gateway-release` | A stamp file holds the hash of the last successfully deployed values (or chart tree). A no-op highstate skips Helm entirely, a real change forces an upgrade, and a *failed* deploy is retried because the stamp is only written when Helm exits 0 |
+| `kps-release`, `gateway-release` | A stamp file holds the hash of the last successfully deployed values (or chart tree). A no-op highstate skips Helm entirely, a real change forces an upgrade, and a *failed* deploy is retried — both because the stamp is only written when Helm exits 0, and because the guard also requires the release to report `deployed`. Both releases share the guard via `salt/states/k3s/macros.jinja` |
+| `k3s`, `helm-repo` | Guarded on the pinned version and the repo URL rather than on a binary existing, so bumping a pillar version actually upgrades instead of silently reporting success |
 | `phase5` | `cron.present` is keyed by identifier, so the crontab converges on one line |
 
 ### Phase 3 — K3s and Prometheus
@@ -219,6 +226,13 @@ consequence of how `prometheus_client` binds label names at `Gauge` creation.
 It runs under a **single** gunicorn worker on purpose. The registry lives in process
 memory, so a second worker would answer `/metrics` from its own partial view of the
 samples.
+
+Because every job reports under its own `SLURM_JOB_ID`, each one leaves three label
+sets behind that are never written again — roughly 900 dead series a day at a job
+every five minutes. Prometheus has already stored their samples, so the gateway
+drops any series it has not seen for `SERIES_TTL_SECONDS` (default one hour) and
+`/metrics` stays bounded. Dashboard history is unaffected, since the panels query
+Prometheus rather than the gateway.
 
 The image is built on the builder, exported as a tar, and side-loaded into containerd
 with `k3s ctr images import`; the Deployment uses `imagePullPolicy: IfNotPresent` so a
@@ -291,6 +305,8 @@ provision/bootstrap-salt.sh     vendored, pinned Salt bootstrap
 artifacts/                      build output shared between nodes (git-ignored)
 salt/etc/                       master and minion configs
 salt/states/                    the state tree (also served masterless to the builder)
+salt/states/artifacts.jinja     shared-folder layout, imported by producer and consumers
+salt/states/k3s/macros.jinja    the namespace and Helm-release idioms both charts use
 salt/pillar/                    every version, address, credential and tunable
 gateway/                        the Phase 4 microservice and its Containerfile
 charts/metrics-gateway/         Helm chart, ServiceMonitor, Phase 5 dashboard
