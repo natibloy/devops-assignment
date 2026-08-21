@@ -51,9 +51,9 @@ Then add one line to your hosts file so the browser can find Grafana.
 192.168.56.12  grafana.local
 ```
 
-Open **<https://grafana.local>** and log in with the credentials from
-`salt/pillar/secrets.sls` (`secrets:grafana_admin_user` / `secrets:grafana_admin_password`).
-The certificate is self-signed, so accept the browser warning once.
+Open **<https://grafana.local>** and log in with Grafana's default credentials,
+**`admin` / `admin`**. The certificate is self-signed, so accept the browser warning
+once.
 
 Two dashboards are provisioned automatically:
 
@@ -330,12 +330,31 @@ charts/metrics-gateway/         Helm chart, ServiceMonitor, Phase 5 dashboard
 
 ## A note on secrets
 
-`salt/pillar/secrets.sls` holds the munge key, the slurmdbd database password and the
-Grafana admin password in plaintext, because this lab has to come up from a single
-`vagrant up` with no external key material. In a real deployment the same pillar keys
-would be filled by Salt's GPG renderer or an SDB backend such as Vault, and only the
-references would live in git. Nothing else in the repository hardcodes a credential —
-the states and templates read every one of them from these pillar keys.
+**No secret material is committed.** `salt/pillar/secrets.sls` is a Python-rendered
+pillar (`#!py`) rather than a static file: the munge key and the slurmdbd database
+password are generated the first time the pillar is rendered and cached under
+`/etc/salt/lab-secrets` on the machine that rendered it.
+
+That machine is the Salt master, and the master renders pillar data on behalf of every
+minion — which is precisely what the munge key requires, since `slurmctld` on the
+controller and `slurmd` on the compute node must hold byte-identical keys. Both
+receive the same generated value from the same cache. Creation is atomic (`O_EXCL`):
+the master renders each minion's pillar independently and may do so concurrently, so
+a plain write-if-missing would let two renders each generate a value with the last
+write winning, and a minion handed the losing one would cache it and go on using a key
+the other node does not share.
+
+Grafana deliberately uses its **default `admin` / `admin`** credentials, as the
+assignment asks, so they are not secret and stay literal.
+
+Rotating is `rm -rf /etc/salt/lab-secrets` on the controller followed by
+`vagrant provision controller compute`; `vagrant destroy` discards the cache, so a
+rebuilt cluster always gets fresh credentials.
+
+In a real deployment this file would be replaced by Salt's GPG renderer, or an
+`ext_pillar` backed by Vault or another secret store. The pillar *keys* it returns
+would be identical, so no state or template would change — which is the point of
+reading every credential through the pillar rather than inlining it.
 
 ## On the use of AI in this assignment
 
