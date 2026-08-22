@@ -19,11 +19,12 @@ def pillar(name, key)
   YAML.load_file(File.join(REPO_ROOT, 'salt', 'pillar', "#{name}.sls"))[key]
 end
 
-NET       = pillar('network', 'network')
-NODES     = NET['nodes']
-GATEWAY   = pillar('gateway', 'gateway')
-SLURM     = pillar('slurm', 'slurm')
-ARTIFACTS = pillar('artifacts', 'artifacts')['root']
+NET        = pillar('network', 'network')
+NODES      = NET['nodes']
+GATEWAY    = pillar('gateway', 'gateway')
+SLURM      = pillar('slurm', 'slurm')
+MONITORING = pillar('monitoring', 'monitoring')
+ARTIFACTS  = pillar('artifacts', 'artifacts')['root']
 
 # 'hostonly' is the normal mode: the private network is a VirtualBox host-only
 # adapter, so the host browser reaches Grafana directly at the compute node's IP.
@@ -118,11 +119,19 @@ Vagrant.configure('2') do |config|
           salt.run_highstate = true
         end
 
-        # Fail loudly here rather than letting the controller discover missing
-        # artifacts halfway through its own highstate. The package list comes from
-        # the pillar the other nodes install from, so this gate cannot drift into
-        # passing on a build that is missing something they need.
+        # Fail loudly here rather than letting the controller or the compute node
+        # discover a missing artifact halfway through its own highstate.
+        #
+        # Everything asserted is derived from the pillar the consumers read, so the
+        # gate cannot drift into passing on a build that is missing something they
+        # need. The image tars are checked by exact name rather than by glob: a glob
+        # is satisfied by a leftover tar from an earlier tag, so it would greenlight
+        # a build whose current image never got produced.
         installed_debs = SLURM['packages'].values.flatten
+        expected_tars = [
+          "metrics-gateway-#{GATEWAY['image']['tag']}.tar",
+          "node-exporter-#{MONITORING['node_exporter']['tag']}.tar",
+        ]
         machine.vm.provision 'verify-artifacts', type: 'shell', inline: <<~SHELL
           set -e
           test -f #{ARTIFACTS}/debs/.built-#{SLURM['version']}
@@ -130,8 +139,10 @@ Vagrant.configure('2') do |config|
           for pkg in #{installed_debs.join(' ')}; do
             ls #{ARTIFACTS}/debs/"$pkg"_*.deb >/dev/null
           done
-          ls #{ARTIFACTS}/images/metrics-gateway-*.tar >/dev/null
-          echo "artifacts verified: $(ls #{ARTIFACTS}/debs/*.deb | wc -l) debs"
+          for tar in #{expected_tars.join(' ')}; do
+            test -s #{ARTIFACTS}/images/"$tar"
+          done
+          echo "artifacts verified: $(ls #{ARTIFACTS}/debs/*.deb | wc -l) debs, #{expected_tars.length} images"
         SHELL
 
         # Delayed so this provisioner exits 0 and Vagrant disconnects cleanly
