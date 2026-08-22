@@ -40,6 +40,7 @@ gateway-release:
         --set image.tag={{ gateway.image.tag }}
         --set service.port={{ gateway.port }}
         --set service.nodePort={{ gateway.node_port }}
+        --set seriesTtlSeconds={{ gateway.series_ttl_seconds }}
         --set serviceMonitor.labels.release={{ kps.release }}
         --wait --timeout 5m
         && {{ hash_cmd }} > {{ stamp }}

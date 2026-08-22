@@ -23,6 +23,8 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.service.port | quote }}
+            - name: SERIES_TTL_SECONDS
+              value: {{ .Values.seriesTtlSeconds | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

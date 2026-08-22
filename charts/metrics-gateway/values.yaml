@@ -2,10 +2,14 @@ replicaCount: 1
 
 image:
   repository: localhost/metrics-gateway
-  tag: "0.2.0"
+  tag: "0.3.0"
   # The image is side-loaded into containerd from the builder's export, so pulling
   # must never be attempted.
   pullPolicy: IfNotPresent
+
+# Seconds before a series the gateway has stopped receiving is dropped, so
+# /metrics stays bounded. Salt overrides this from its pillar.
+seriesTtlSeconds: 3600
 
 service:
   type: NodePort
