@@ -42,15 +42,6 @@ The nodes come up in order, each provisioned by Salt:
 Afterwards `vagrant status` shows the builder as `poweroff`. **That is the expected
 end state, not a failure** — it exists only to produce the artifacts in `artifacts/`.
 
-To confirm the whole stack is healthy:
-
-```bash
-./scripts/verify.sh
-```
-
-It checks all five phases, including submitting a real Slurm job and confirming its
-metrics arrive, and reports `49 passed, 0 failed` on a working deployment.
-
 ## Accessing the Grafana dashboard
 
 Add one line to your hosts file so the browser can resolve the ingress hostname:
