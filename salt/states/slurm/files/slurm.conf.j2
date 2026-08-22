@@ -1,9 +1,18 @@
 {#- Rendered identically on every node: Slurm requires a consistent slurm.conf
-    cluster-wide, so the same template and pillar drive both roles. -#}
+    cluster-wide, so the same template and pillar drive both roles.
+
+    Nodes are selected by their `role` rather than named literally, so adding an
+    entry to network.sls is all it takes to put a machine in the cluster - the
+    same way the /etc/hosts loop and the Prometheus scrape targets work. -#}
 {%- set slurm = pillar['slurm'] %}
 {%- set nodes = pillar['network']['nodes'] %}
+{%- set controller = (nodes | dictsort | selectattr('1.role', 'equalto', 'controller') | list) | first %}
+{%- set controller_name = controller[0] %}
+{%- set controller_ip = controller[1].ip %}
+{#- dictsort keeps the order stable, so the rendered file does not churn between runs. -#}
+{%- set computes = nodes | dictsort | selectattr('1.role', 'equalto', 'compute') | list %}
 ClusterName={{ slurm.cluster_name }}
-SlurmctldHost=controller({{ nodes.controller.ip }})
+SlurmctldHost={{ controller_name }}({{ controller_ip }})
 
 SlurmUser={{ slurm.user.name }}
 SlurmctldPort={{ slurm.slurmctld_port }}
@@ -31,10 +40,15 @@ ReturnToService=2
 # Job accounting into slurmdbd, which is what makes `sacct` work for the Phase 5
 # jobs.
 AccountingStorageType=accounting_storage/slurmdbd
-AccountingStorageHost=controller
+AccountingStorageHost={{ controller_name }}
 AccountingStoragePort={{ slurm.slurmdbd_port }}
 JobAcctGatherType=jobacct_gather/linux
 JobAcctGatherFrequency=10
 
-NodeName=compute NodeAddr={{ nodes.compute.ip }} CPUs={{ nodes.compute.cpus }} RealMemory={{ slurm.compute_node.real_memory }} State=UNKNOWN
-PartitionName={{ slurm.partition.name }} Nodes=compute Default={{ slurm.partition.default }} MaxTime={{ slurm.partition.max_time }} State={{ slurm.partition.state }}
+# CPUs come from each node's VM sizing; RealMemory is a single figure for all
+# compute nodes, deliberately below what the VMs actually have so the kernel and
+# K3s are not starved.
+{%- for name, node in computes %}
+NodeName={{ name }} NodeAddr={{ node.ip }} CPUs={{ node.cpus }} RealMemory={{ slurm.compute_node.real_memory }} State=UNKNOWN
+{%- endfor %}
+PartitionName={{ slurm.partition.name }} Nodes={{ computes | map(attribute='0') | join(',') }} Default={{ slurm.partition.default }} MaxTime={{ slurm.partition.max_time }} State={{ slurm.partition.state }}

@@ -1,6 +1,10 @@
+{#- The accounting daemon runs on whichever node holds the controller role, so
+    the host is selected by role rather than named literally. -#}
 {%- set slurm = pillar['slurm'] %}
+{%- set nodes = pillar['network']['nodes'] %}
+{%- set controller_name = ((nodes | dictsort | selectattr('1.role', 'equalto', 'controller') | list) | first)[0] %}
 AuthType=auth/munge
-DbdHost=controller
+DbdHost={{ controller_name }}
 DbdPort={{ slurm.slurmdbd_port }}
 SlurmUser={{ slurm.user.name }}
 
