@@ -64,34 +64,35 @@ prometheus:
       limits:
         memory: 1500Mi
 
-    # Both host node exporters are scraped from here rather than through the
-    # chart's own ServiceMonitor, so the controller (Podman) and the compute node
-    # (DaemonSet) are covered by one explicit job.
+    # Exporters the Prometheus Operator cannot discover on its own, because they
+    # run outside the cluster. The controller's node_exporter is a Podman
+    # container on a machine that is not a Kubernetes node, so no ServiceMonitor
+    # can select it - which is exactly what additionalScrapeConfigs is for.
     #
-    # Derived from the node map so adding a node to the pillar also scrapes it.
-    # The builder is excluded: it is ephemeral and runs no exporter.
+    # The compute node's exporter is not listed here: it is the chart's own
+    # DaemonSet, in-cluster and already scraped by the ServiceMonitor that ships
+    # with it. Labels are left to Prometheus so both targets are labelled the
+    # same way.
+    #
+    # Derived from the node map rather than hardcoded, so a second out-of-cluster
+    # node would be picked up by adding it to the pillar.
     additionalScrapeConfigs:
-      - job_name: node-exporter-hosts
+      - job_name: node-exporter-external
         static_configs:
-{%- for name, node in nodes.items() if node.role != 'builder' %}
+{%- for name, node in nodes.items() if node.role == 'controller' %}
           - targets:
               - '{{ node.ip }}:{{ exporter_port }}'
-            labels:
-              node: {{ name }}
-              instance: {{ name }}
 {%- endfor %}
 
-# Runs node_exporter on the compute node. The Podman-managed exporter required by
-# the assignment stays exclusive to the controller.
+# Runs node_exporter on the compute node, scraped by the ServiceMonitor the chart
+# ships with - left at its defaults deliberately. The Podman-managed exporter that
+# the assignment asks for stays exclusive to the controller, and is scraped through
+# additionalScrapeConfigs above because nothing in Kubernetes can discover it.
+#
+# Because the DaemonSet runs with hostNetwork, its pod address is the node's own
+# address, so both targets end up scraped at <node ip>:9100.
 nodeExporter:
   enabled: true
-
-prometheus-node-exporter:
-  prometheus:
-    monitor:
-      # Disabled so additionalScrapeConfigs above is the only thing scraping node
-      # exporters; otherwise every compute sample would arrive twice.
-      enabled: false
 
 # The kubelet/etcd/scheduler/controller-manager endpoints a single-node K3s server
 # does not expose on the expected ports, so their targets never go stale-red.

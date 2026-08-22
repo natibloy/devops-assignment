@@ -133,7 +133,8 @@ printf '  %sscrape targets:%s\n' "$c_dim" "$c_off"
 printf '%s' "$TARGETS" | tr ' ' '\n' | sed '/^$/d;s/^/        /'
 check "controller node exporter UP"     "192\.168\.56\.11:9100/metrics\|up" "$TARGETS"
 check "compute node exporter UP"        "192\.168\.56\.12:9100/metrics\|up" "$TARGETS"
-check "single node-exporter-hosts job"  "node-exporter-hosts"               "$TARGETS"
+check "controller scraped via additionalScrapeConfigs" "node-exporter-external" "$TARGETS"
+check "compute scraped via the chart's ServiceMonitor"  "node-exporter.*192\.168\.56\.12:9100" "$TARGETS"
 check "no scrape target down"           "^0$" "$(printf '%s' "$TARGETS" | tr ' ' '\n' | grep -c '|down$')"
 check "Node Exporter Full dashboard (1860)" "Node Exporter Full" "$(field "$CMP" dashboards)"
 
