@@ -19,10 +19,6 @@ Kubernetes-native monitoring stack:
 
 No Vagrant plugins are required.
 
-> **If VirtualBox was only just installed or upgraded, reboot the host first.** Its
-> host-only network driver is unusable until the machine restarts, and until then
-> every VM fails to start with `VERR_INTNET_FLT_IF_NOT_FOUND`.
-
 ## Running it
 
 ```bash
