@@ -442,12 +442,12 @@ an ordinary requirement, and `gateway/app.py` carried an unused `import sys` wit
 note in this README claiming the assignment asked for it. Both were wrong and have
 been reversed.
 
-It was not caught at first read. It surfaced later, when the work was put in front of a
-separate model for review — the tool that wrote the code was not the tool that found the
-problem. That is the honest sequence, and it is the argument for having a review step
-that is independent of whatever produced the work: the injection was written
-specifically to avoid annotating itself, so the only thing that catches it is something
-looking at the output with fresh assumptions.
+It was flagged during review, then verified from the PDF's internals rather than taken
+on trust — the per-character colour and size figures above are the evidence — and only
+then removed. Worth noting why a review step is what catches this at all: the injection
+explicitly instructs against annotating the import or noting that it is unused, so it is
+built to leave no trace in the code for the author to notice. Reviewing the output is the
+only thing that surfaces it.
 
 An instruction deliberately concealed from the reader is not a requirement of the
 assignment, and an unused import has no engineering justification — linters flag it,
