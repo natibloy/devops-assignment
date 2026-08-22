@@ -26,21 +26,6 @@ SLURM      = pillar('slurm', 'slurm')
 MONITORING = pillar('monitoring', 'monitoring')
 ARTIFACTS  = pillar('artifacts', 'artifacts')['root']
 
-# 'hostonly' is the normal mode: the private network is a VirtualBox host-only
-# adapter, so the host browser reaches Grafana directly at the compute node's IP.
-#
-# 'intnet' exists for hosts where VirtualBox's host-only filter driver is
-# unavailable - most often on Windows right after a VirtualBox upgrade, where
-# starting a VM fails with VERR_INTNET_FLT_IF_NOT_FOUND until the machine is
-# rebooted. The nodes still get the same static IPs on the same subnet, but the
-# segment is internal to VirtualBox, so host access is provided by forwarded ports
-# instead. Select it with HPC_NET_MODE=intnet.
-NET_MODE = ENV.fetch('HPC_NET_MODE', 'hostonly')
-unless %w[hostonly intnet].include?(NET_MODE)
-  raise "HPC_NET_MODE must be 'hostonly' or 'intnet', got #{NET_MODE.inspect}"
-end
-INTNET_NAME = 'hpc-devops-private'
-
 # The compute minion has to be told where its master lives. Rendering the config
 # here keeps the controller's address defined only in the pillar.
 GENERATED_DIR = File.join(REPO_ROOT, '.vagrant', 'generated')
@@ -82,17 +67,9 @@ Vagrant.configure('2') do |config|
     config.vm.define name do |machine|
       machine.vm.hostname = name
 
-      private_net = { ip: node['ip'] }
-      private_net[:virtualbox__intnet] = INTNET_NAME if NET_MODE == 'intnet'
-      machine.vm.network 'private_network', **private_net
-
-      # Without a host-only adapter the host cannot route to the private subnet,
-      # so Grafana and the gateway are reached through the NAT interface instead.
-      if NET_MODE == 'intnet' && name == 'compute'
-        machine.vm.network 'forwarded_port', guest: 443, host: 443, auto_correct: true
-        machine.vm.network 'forwarded_port',
-          guest: GATEWAY['node_port'], host: GATEWAY['node_port'], auto_correct: true
-      end
+      # A VirtualBox host-only adapter, so the host browser reaches Grafana
+      # directly at the compute node's address.
+      machine.vm.network 'private_network', ip: node['ip']
 
       machine.vm.provider 'virtualbox' do |vb|
         vb.name   = "hpc-devops-#{name}"

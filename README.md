@@ -38,9 +38,9 @@ git clone <this-repo> && cd devops-assignment
 vagrant up
 ```
 
-> If this fails immediately with `VERR_INTNET_FLT_IF_NOT_FOUND`, VirtualBox cannot
-> attach its host-only adapter — see [Troubleshooting](#troubleshooting) for the
-> one-line workaround that needs no reboot.
+> If VirtualBox was only just installed or upgraded, reboot before the first
+> `vagrant up` — its host-only network driver is not usable until the host restarts.
+> See [Troubleshooting](#troubleshooting).
 
 Then add one line to your hosts file so the browser can find Grafana.
 
@@ -275,27 +275,13 @@ for the Salt provisioner, so output appears in bursts; the compile is 10–25 mi
 guest can add it for you. Verify with `curl -k https://192.168.56.12 -H 'Host: grafana.local'`.
 
 **`vagrant up` fails with `VERR_INTNET_FLT_IF_NOT_FOUND`.** VirtualBox cannot attach
-the host-only adapter, which on Windows almost always means its network filter driver
-was replaced by an installer and the host has not been rebooted yet, so the driver in
-memory no longer matches the one on disk. Rebooting fixes it.
+the host-only adapter. This means its network filter driver was installed or replaced
+by an installer and the host has not been restarted since, so the driver in memory no
+longer matches the one on disk — no VM using a host-only network will start.
 
-To keep working without a reboot, run in internal-network mode:
-
-```bash
-HPC_NET_MODE=intnet vagrant up
-```
-
-The nodes keep the same static IPs on the same subnet and behave identically, but the
-segment is internal to VirtualBox, so the host reaches the compute node through
-forwarded ports rather than directly. In this mode the hosts-file entry is:
-
-```
-127.0.0.1  grafana.local
-```
-
-Grafana is then at <https://grafana.local> (forwarded to the compute node's 443) and
-the gateway at `http://localhost:30080`. Set the variable on every subsequent
-`vagrant` command for that environment, since it selects how the adapter is attached.
+**Reboot the host.** That is the whole fix; there is nothing to change in this
+repository. It is worth checking before a first run on a machine where VirtualBox or
+Vagrant was just installed.
 
 **Everything is very slow.** On Windows, Hyper-V/VBS forces VirtualBox into its slower
 NEM execution mode (VirtualBox shows a green turtle icon). Disabling Hyper-V,
