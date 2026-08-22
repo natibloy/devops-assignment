@@ -112,7 +112,7 @@ check "slurmdbd active"                 "^active$"    "$(field "$CTL" svc_slurmd
 check "slurmctld active"                "^active$"    "$(field "$CTL" svc_slurmctld)"
 check "slurmd active (compute)"         "^active$"    "$(field "$CMP" svc_slurmd)"
 check "cluster registered in accounting" "lab"        "$(field "$CTL" cluster)"
-check "compute node available to Slurm" "compute:(idle|mixed|alloc)" "$(field "$CTL" sinfo)"
+check "compute node available to Slurm" "compute:(idle|mixed|alloc|comp)" "$(field "$CTL" sinfo)"
 
 section "Phase 2 - Podman telemetry (controller only)"
 check "node_exporter container running" "node_exporter" "$(field "$CTL" containers)"

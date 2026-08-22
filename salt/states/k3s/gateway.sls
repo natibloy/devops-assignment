@@ -9,7 +9,7 @@
 {#- Covers the whole chart directory, so editing a template or the dashboard on
     the host redeploys on the next highstate. Defined once because the deploy
     writes it and its guard re-evaluates it. -#}
-{%- set hash_cmd = "find " ~ gateway.chart_path ~ " -type f -exec sha256sum {} + | sort -k2 | sha256sum | cut -d' ' -f1" %}
+{%- set hash_cmd = "find " ~ gateway.chart_dir ~ " -type f -exec sha256sum {} + | sort -k2 | sha256sum | cut -d' ' -f1" %}
 
 include:
   - k3s
@@ -28,13 +28,22 @@ gateway-image-import:
 
 {{ k8s.namespace('gateway-namespace', gateway.namespace) }}
 
+# Fetched from the Salt master rather than read off a Vagrant synced folder, so
+# this state works on any minion the master can reach. clean removes files that
+# have been deleted from the chart, which a plain copy would leave behind.
+gateway-chart:
+  file.recurse:
+    - name: {{ gateway.chart_dir }}
+    - source: {{ gateway.chart_source }}
+    - clean: True
+
 # The ServiceMonitor's release label has to match the kube-prometheus-stack
 # release for Prometheus to select it, so Salt passes it in rather than letting
 # the chart carry a second copy of a name this pillar already owns.
 gateway-release:
   cmd.run:
     - name: >-
-        helm upgrade --install {{ gateway.release }} {{ gateway.chart_path }}
+        helm upgrade --install {{ gateway.release }} {{ gateway.chart_dir }}
         --namespace {{ gateway.namespace }}
         --set image.repository={{ gateway.image.name }}
         --set image.tag={{ gateway.image.tag }}
@@ -51,5 +60,6 @@ gateway-release:
     - require:
       - cmd: gateway-image-import
       - cmd: gateway-namespace
+      - file: gateway-chart
       - cmd: helm-install
       - cmd: kps-release

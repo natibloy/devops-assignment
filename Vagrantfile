@@ -87,6 +87,12 @@ Vagrant.configure('2') do |config|
         machine.vm.synced_folder 'salt/pillar', '/srv/pillar', type: 'virtualbox'
       end
 
+      # The master serves the Helm chart to the compute node, so it needs it on
+      # disk as a second file root. Compute gets it over the wire, not from here.
+      if name == 'controller'
+        machine.vm.synced_folder 'charts', '/srv/charts', type: 'virtualbox'
+      end
+
       case name
       when 'builder'
         machine.vm.provision :salt do |salt|

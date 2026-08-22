@@ -201,6 +201,7 @@ Idempotency, state by state:
 | `kps-release`, `gateway-release` | A stamp file holds the hash of the last successfully deployed values (or chart tree). A no-op highstate skips Helm entirely, a real change forces an upgrade, and a *failed* deploy is retried — both because the stamp is only written when Helm exits 0, and because the guard also requires the release to report `deployed`. Both releases share the guard via `salt/states/k3s/macros.jinja` |
 | `k3s`, `helm-repo` | Guarded on the pinned version and the repo URL rather than on a binary existing, so bumping a pillar version actually upgrades instead of silently reporting success |
 | `phase5` | `cron.present` is keyed by identifier, so the crontab converges on one line |
+| `time-sync` | An NTP client runs on every node. Munge stamps each credential with a timestamp and rejects any outside a tolerance window, so drifting clocks break Slurm RPCs with what looks like a bad key. VirtualBox's guest time sync does not step a large offset — this was observed as a 14-minute drift on the compute node |
 
 ### Phase 3 — K3s and Prometheus
 
@@ -212,6 +213,13 @@ and its own kubelet becomes unreachable.
 `kube-prometheus-stack` is installed with the Helm binary rather than K3s's
 `HelmChart` CRD, so the same mechanism deploys both this chart and the in-repo
 gateway chart, and `--wait` gives Salt a real success signal.
+
+The gateway chart itself is served **by the Salt master**: `charts/` is a second
+`file_roots` entry, and the compute node pulls it with `file.recurse` into a
+guest-local directory before Helm installs from there. It previously read the chart
+straight off Vagrant's `/vagrant` synced folder, which tied that state to a Vagrant
+guest of this checkout and quietly undercut the point that compute gets everything
+from the master.
 
 `additionalScrapeConfigs` carries **one** `node-exporter-hosts` job with both hosts as
 static targets — the controller's Podman exporter and the compute node's DaemonSet.

@@ -1,7 +1,10 @@
 gateway:
   release: metrics-gateway
   namespace: gateway
-  chart_path: /vagrant/charts/metrics-gateway
+  # Served by the Salt master (charts/ is a file root) and unpacked to a
+  # guest-local directory, so the compute node needs no synced folder.
+  chart_source: salt://metrics-gateway
+  chart_dir: /opt/metrics-gateway-chart
   image:
     name: localhost/metrics-gateway
     tag: 0.3.0
