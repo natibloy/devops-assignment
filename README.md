@@ -414,7 +414,7 @@ between job IDs), and the Helm charts are linted and templated — the gateway c
 plus the real kube-prometheus-stack 88.5.2 — with the rendered manifests asserted to
 carry both scrape targets, the Grafana ingress and credentials, and dashboard 1860.
 
-It was then run end-to-end. A 47-check verification pass covers all five phases: the
+It was then run end-to-end. A 48-check verification pass covers all five phases: the
 exported artifacts and the powered-off builder, both minions responding with matching
 Munge keys, the Slurm control plane with a job completing on the compute node, the
 Podman node_exporter, every Prometheus target up (including both node exporters and
