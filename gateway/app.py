@@ -6,7 +6,6 @@ to a Prometheus server (which only pulls).
 """
 
 import os
-import sys
 import threading
 import time
 
