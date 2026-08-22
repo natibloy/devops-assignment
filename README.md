@@ -334,34 +334,3 @@ salt/pillar/                    every version, address, credential and tunable
 gateway/                        the Phase 4 microservice and its Containerfile
 charts/metrics-gateway/         Helm chart, ServiceMonitor, Phase 5 dashboard
 ```
-
-## A note on secrets
-
-`salt/pillar/secrets.sls` holds the Munge key, the slurmdbd database password and the
-Grafana credentials, which is what the assignment asks for: sensitive data lives in a
-Salt Pillar, and no state or template contains a credential — they all read these keys
-by name.
-
-Every value in it is a **throwaway lab credential**. They authorize nothing outside the
-three disposable VMs on a private host-only network, and they are identical for anyone
-who clones the repository — which is the point, since `vagrant up` has to work from a
-fresh clone with no external key material to fetch. The Munge key decodes to a string
-that says so; Munge accepts any 32–1024 byte key, and for a key that is public in git
-anyway, entropy buys nothing over honesty. Grafana uses its default `admin` / `admin`,
-as specified.
-
-**What a real deployment would do instead.** Keep exactly these pillar keys, and fill
-them from Salt's GPG renderer, or an `ext_pillar` backed by Vault, AWS Secrets Manager
-or similar — with only the *references* in git. Nothing else in the repository would
-change, because the storage backend is the only thing that differs: every state and
-template already reads these credentials through the pillar rather than inlining them.
-That indirection is the reason the backend is a swappable detail, and it is the main
-reason to put credentials in a pillar in the first place.
-
-For the record, an earlier iteration generated the machine-only secrets on the master
-at first render instead of committing them. It worked, but it made pillar rendering
-have side effects — and because the master renders each minion's pillar independently
-and concurrently, that produced a real bug where the two nodes ended up with different
-Munge keys. Committing disposable lab values is simpler, has no such failure mode, and
-answers the actual requirement; the production story above is where the real
-credential handling belongs.
