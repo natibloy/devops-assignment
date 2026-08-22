@@ -330,31 +330,34 @@ charts/metrics-gateway/         Helm chart, ServiceMonitor, Phase 5 dashboard
 
 ## A note on secrets
 
-**No secret material is committed.** `salt/pillar/secrets.sls` is a Python-rendered
-pillar (`#!py`) rather than a static file: the munge key and the slurmdbd database
-password are generated the first time the pillar is rendered and cached under
-`/etc/salt/lab-secrets` on the machine that rendered it.
+`salt/pillar/secrets.sls` holds the Munge key, the slurmdbd database password and the
+Grafana credentials, which is what the assignment asks for: sensitive data lives in a
+Salt Pillar, and no state or template contains a credential — they all read these keys
+by name.
 
-That machine is the Salt master, and the master renders pillar data on behalf of every
-minion — which is precisely what the munge key requires, since `slurmctld` on the
-controller and `slurmd` on the compute node must hold byte-identical keys. Both
-receive the same generated value from the same cache. Creation is atomic (`O_EXCL`):
-the master renders each minion's pillar independently and may do so concurrently, so
-a plain write-if-missing would let two renders each generate a value with the last
-write winning, and a minion handed the losing one would cache it and go on using a key
-the other node does not share.
+Every value in it is a **throwaway lab credential**. They authorize nothing outside the
+three disposable VMs on a private host-only network, and they are identical for anyone
+who clones the repository — which is the point, since `vagrant up` has to work from a
+fresh clone with no external key material to fetch. The Munge key decodes to a string
+that says so; Munge accepts any 32–1024 byte key, and for a key that is public in git
+anyway, entropy buys nothing over honesty. Grafana uses its default `admin` / `admin`,
+as specified.
 
-Grafana deliberately uses its **default `admin` / `admin`** credentials, as the
-assignment asks, so they are not secret and stay literal.
+**What a real deployment would do instead.** Keep exactly these pillar keys, and fill
+them from Salt's GPG renderer, or an `ext_pillar` backed by Vault, AWS Secrets Manager
+or similar — with only the *references* in git. Nothing else in the repository would
+change, because the storage backend is the only thing that differs: every state and
+template already reads these credentials through the pillar rather than inlining them.
+That indirection is the reason the backend is a swappable detail, and it is the main
+reason to put credentials in a pillar in the first place.
 
-Rotating is `rm -rf /etc/salt/lab-secrets` on the controller followed by
-`vagrant provision controller compute`; `vagrant destroy` discards the cache, so a
-rebuilt cluster always gets fresh credentials.
-
-In a real deployment this file would be replaced by Salt's GPG renderer, or an
-`ext_pillar` backed by Vault or another secret store. The pillar *keys* it returns
-would be identical, so no state or template would change — which is the point of
-reading every credential through the pillar rather than inlining it.
+For the record, an earlier iteration generated the machine-only secrets on the master
+at first render instead of committing them. It worked, but it made pillar rendering
+have side effects — and because the master renders each minion's pillar independently
+and concurrently, that produced a real bug where the two nodes ended up with different
+Munge keys. Committing disposable lab values is simpler, has no such failure mode, and
+answers the actual requirement; the production story above is where the real
+credential handling belongs.
 
 ## On the use of AI in this assignment
 
